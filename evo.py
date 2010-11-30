@@ -138,6 +138,7 @@ class Bot(object):
         self.camuflage = 0
         self.last_couple = []
         self.size = 10
+        self.in_ain = False
         self.last_sex = 0
         if genetic_code == None:
             self.create_random_gcode()
@@ -176,9 +177,9 @@ class Bot(object):
         other.energy *= 0.75
         son_vt = (self.variability_tax + other.variability_tax) / 2.0
         sz = self.surface.get_size()
-        self.__class__(randint(0,sz[0]), randint(0,sz[0]), self.surface, self.bots_list,
-                       self.grass, son_energy,  son_vt, new_genome,
-                       self.train_turns)
+        self.__class__(randint(0,sz[0]), randint(0,sz[0]), self.surface,
+                       self.bots_list, self.grass, son_energy, son_vt,
+                       new_genome, self.train_turns)
         return True
 
     def train(self):
@@ -262,7 +263,8 @@ class Bot(object):
         draw_angle = astart
         for bot in bots_by_distance[:]:
             #angle between it self and other bot
-            angle = atan2(bot.pos[1] - self.pos[1], bot.pos[0] - self.pos[0]) % (2 * pi)
+            angle = atan2(bot.pos[1] - self.pos[1], bot.pos[0] - self.pos[0])
+            angle %= (2 * pi)
             if angle > astart and angle <= (astart + aangles[0]) % (2 * pi):
                 #Verify if the bot is of the same type of itself
                 if bot.__class__.__name__ == self.__class__.__name__:
@@ -323,10 +325,9 @@ class  Carnivore(Bot):
 
     def react(self):
         for bot in self.bots_list:
-            if bot != self and bots_distance(bot, self) < (self.size + bot.size):
+            if bot != self and bots_distance(bot,self) <(self.size + bot.size):
                 sex_time = self.age - self.last_sex
                 if sex_time > 100 and (self + bot):
-                    print "Filho"
                     self.last_sex = self.age
                     self.last_couple = [self, bot]
                     bot.last_couple = [bot, self]
@@ -340,7 +341,7 @@ class  Carnivore(Bot):
                         bot.die()
         self.sensors = self.use_sensors()
         reactions = self.neural_network.run(self.sensors)
-        self.color = reactions[3] * 128
+        self.camuflage = reactions[3] * 128
         self.move(reactions[0], reactions[1])
         if reactions[2] > 0.5:
             self.emit_sound()
@@ -359,7 +360,7 @@ class  Carnivore(Bot):
         if self.size < 2:
             self.size = 2
         #Body
-        color = (255, 128 - self.color, 128 - self.color)
+        color = (255, 128 - self.camuflage, 128 - self.camuflage)
         pygame.draw.circle(self.surface, color, (int(self.pos[0]),
                            int(self.pos[1])), int(self.size))
         #Contour
@@ -370,16 +371,20 @@ class  Carnivore(Bot):
                  self.pos[1] + 50 * sin(self.angle))
         pygame.draw.aaline(self.surface, (255,0,0), (int(self.pos[0]),
                          int(self.pos[1])), point)
-        #Sound Waves
-        for sound in self.sound_list:
-            size = int(self.age - sound[0]) * 50
+        if self.in_ain:
+            pygame.draw.circle(self.surface, (255,0,0), (int(self.pos[0]),
+                               int(self.pos[1])), self.size + 3 , 1)
+            #Sound Waves
+            for sound in self.sound_list:
+                size = int(self.age - sound[0]) * 50
 
-            if size > max(self.surface.get_size()):
-                self.sound_list.remove(sound)
-                continue
-            elif size > 2:
-                pygame.draw.circle(self.surface, (255,200,255), (int(sound[1][0]),
-                                   int(sound[1][1])), size , 1)
+                if size > max(self.surface.get_size()):
+                    self.sound_list.remove(sound)
+                    continue
+                elif size > 2:
+                    pygame.draw.circle(self.surface, (255,200,255),
+                                      (int(sound[1][0]),int(sound[1][1])),
+                                       size , 1)
 
 class Herbivore(Bot):
 
@@ -400,7 +405,7 @@ class Herbivore(Bot):
         self.move(reactions[0], reactions[1])
         if reactions[2] > 0.5:
             self.emit_sound()
-        self.color = reactions[3] * 128
+        self.camuflage = reactions[3] * 128
         if sum(reactions[0:3]) < 0.5:
             self.energy -= 1
         self.energy -= sum(reactions[0:3]) / 5.0 + 1
@@ -416,7 +421,7 @@ class Herbivore(Bot):
         if self.size < 2:
             self.size = 2
         #Body
-        color = (128 - self.color, 128 - self.color, 255)
+        color = (128 - self.camuflage, 128 - self.camuflage, 255)
         pygame.draw.circle(self.surface, color, (int(self.pos[0]),
                            int(self.pos[1])), int(self.size))
         #Contour
@@ -427,19 +432,24 @@ class Herbivore(Bot):
                  self.pos[1] + 50 * sin(self.angle))
         pygame.draw.aaline(self.surface, (255,0,0), (int(self.pos[0]),
                          int(self.pos[1])), point)
-        #Sound Waves
-        for sound in self.sound_list:
-            size = int(self.age - sound[0]) * 50
-            if size > max(self.surface.get_size()):
-                self.sound_list.remove(sound)
-                continue
-            elif size > 2:
-                pygame.draw.circle(self.surface, (255,200,255), (int(sound[1][0]),
-                                   int(sound[1][1])), size , 1)
+        if self.in_ain:
+            pygame.draw.circle(self.surface, (255,0,0), (int(self.pos[0]),
+                               int(self.pos[1])), self.size + 3 , 1)
+            #Sound Waves
+            for sound in self.sound_list:
+                size = int(self.age - sound[0]) * 50
+
+                if size > max(self.surface.get_size()):
+                    self.sound_list.remove(sound)
+                    continue
+                elif size > 2:
+                    pygame.draw.circle(self.surface, (255,200,255),
+                                      (int(sound[1][0]),int(sound[1][1])),
+                                       size , 1)
         
 
 class World:
-    def __init__(self, size = (1000, 1000), grass_number = 20, min_herb = 10,
+    def __init__(self, size = (1000, 700), grass_number = 20, min_herb = 10,
                  min_carn = 10, init_herb = 20, init_carn = 20):
         self.bots = []
         self.min_carn = min_carn
@@ -474,6 +484,7 @@ class World:
             self.bots[-1].energy = 500
 
     def get_event(self):
+        last_in_ain = self.bots[0]
         while 1:
             event = pygame.event.wait()
             if event.type == QUIT:
@@ -483,6 +494,15 @@ class World:
                 show()
                 pygame.quit()
                 sys.exit()
+            if event.type == MOUSEBUTTONDOWN:
+                #Bots by distance
+                bbd = sorted(self.bots, key = lambda bot: bots_distance(bot,event))
+                nearst_bot = bbd[0]
+                if event.button == 1:
+                    last_in_ain.in_ain = False
+                    nearst_bot.in_ain = True
+                    last_in_ain = nearst_bot
+                
 
     def population_controll(self):
         herb_pop = 0
