@@ -66,6 +66,8 @@ class Grass:
         self.facility_of_obtention = speed_of_obtention
         self.speed_of_growing = speed_of_growing
         self.initial_size = initial_size
+        self.razao_x = self.size[0] / float(self.screen[0])
+        self.razao_y = self.size[1] / float(self.screen[1])
         self.grid = []
         for x in range(width):
             self.grid.append([self.initial_size] * heigth)
@@ -108,11 +110,9 @@ class Grass:
                 self.surface.fill(color, rect)
 
     def get_food_quantity(self, x, y):
-        razao_x = self.size[0] / float(self.screen[0])
-        razao_y = self.size[1] / float(self.screen[1])
-        pos_x = int(x * razao_x)
-        pos_y = int(y * razao_y)
-        return self.grid[pos_x][pos_y] / float(self.max_capacity)
+        pos_x = int(x * self.razao_x)
+        pos_y = int(y * self.razao_y)
+        return self.grid[pos_x - 1][pos_y - 1] / float(self.max_capacity)
 
 class Bot(object):
 
@@ -231,7 +231,7 @@ class Bot(object):
         #Enters values between 0 ~ 1
         self.angle += radians(well2 - well1) * 5
         self.angle %= (2 * pi)
-        move = (1 - abs(well1 - well2)) * (well1 + well2) * 10
+        move = (1 - abs(well1 - well2)) * (well1 + well2) * 5
         self.pos[0] += cos(self.angle) * move
         self.pos[1] += sin(self.angle) * move
         size = self.surface.get_size()
@@ -337,8 +337,11 @@ class  Carnivore(Bot):
                             self.energy += 400
                             bot.die()
                     else:
-                        self.energy += 200
-                        bot.die()
+                        atack_force = self.energy / 2.0
+                        bot.energy -= atack_force
+                        if bot.energy <= 0:
+                            self.energy += atack_force
+                            bot.die()
         self.sensors = self.use_sensors()
         reactions = self.neural_network.run(self.sensors)
         self.camuflage = reactions[3] * 128
@@ -347,12 +350,12 @@ class  Carnivore(Bot):
             self.emit_sound()
         if sum(reactions[0:3]) < 0.5:
             self.energy -= 1
-        self.energy -= sum(reactions[0:3]) / 2.0 + 1
+        self.energy -= sum(reactions[0:3]) / 2.0 + 3
         if self.energy <= 0:
             self.die()
         self.size = self.energy / 3000.0 * 10 + 5 + self.age / 1000.0
-        if self.size > 20:
-            self.size = 20
+        if self.size > 15:
+            self.size = 15
         self.age += 1
         self.draw()
 
@@ -408,7 +411,7 @@ class Herbivore(Bot):
         self.camuflage = reactions[3] * 128
         if sum(reactions[0:3]) < 0.5:
             self.energy -= 1
-        self.energy -= sum(reactions[0:3]) / 5.0 + 1
+        self.energy -= sum(reactions[0:3]) / 5.0 + 3
         if self.energy <= 0:
             self.die()
         self.size = self.energy / 3000.0 * 10 + 5 + self.age / 1000.0
@@ -424,7 +427,7 @@ class Herbivore(Bot):
         color = (128 - self.camuflage, 128 - self.camuflage, 255)
         pygame.draw.circle(self.surface, color, (int(self.pos[0]),
                            int(self.pos[1])), int(self.size))
-        #Contour
+        #Contourbot
         pygame.draw.circle(self.surface, (0,0,0), (int(self.pos[0]),
                            int(self.pos[1])), int(self.size), 1)
         #Direction
@@ -449,8 +452,8 @@ class Herbivore(Bot):
         
 
 class World:
-    def __init__(self, size = (1000, 700), grass_number = 20, min_herb = 10,
-                 min_carn = 10, init_herb = 20, init_carn = 20):
+    def __init__(self, size = (800, 800), grass_number = 20, min_herb = 10,
+                 min_carn = 10, init_herb = 30, init_carn = 30):
         self.bots = []
         self.min_carn = min_carn
         self.min_herb = min_herb
