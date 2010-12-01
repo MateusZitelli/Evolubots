@@ -41,6 +41,26 @@ def create_network(inputs, outputs):
     ann.set_activation_function_output(libfann.SIGMOID)
     return ann
 
+def primary_dad(bot):
+    if bot.dad:
+       return primary_dad(bot.dad)
+    else:
+       return bot
+
+def draw_lines_between_bots(surface, bot, blist, bots_verified):
+    for relative in blist:
+        if not (relative, bot) in bots_verified or not (bot,
+                relative) in bots_verified:
+            pygame.draw.aaline(surface, (0,0,255), bot.pos, relative.pos)
+            bots_verified.append((relative,bot))
+            draw_lines_between_bots(surface, relative, relative.relatives,
+                                    bots_verified)
+
+def draw_genealogic_tree(surface, bot):
+    verified = []
+    for rela in bot.relatives:
+        draw_lines_between_bots(surface, rela, rela.relatives, verified)
+
 def bots_distance(b1, b2):
     return sqrt((b1.pos[0] - b2.pos[0]) ** 2 + (b1.pos[1] - b2.pos[1]) ** 2)
 
@@ -48,8 +68,8 @@ class Grass:
     """field of grass"""
 
 
-    def __init__(self, width, heigth, surface, max_val_each_field = 100,
-                 speed_of_obtention = 5, speed_of_growing = 0.5,
+    def __init__(self, width, heigth, surface, max_val_each_field = 200,
+                 speed_of_obtention = 20, speed_of_growing = 2,
                  initial_size = 0):
         """
         width, heigth -> Number of fields on grass field.
@@ -139,6 +159,7 @@ class Bot(object):
         self.last_couple = []
         self.size = 10
         self.in_ain = False
+        self.relatives = []
         self.last_sex = 0
         if genetic_code == None:
             self.create_random_gcode()
@@ -180,6 +201,8 @@ class Bot(object):
         self.__class__(randint(0,sz[0]), randint(0,sz[0]), self.surface,
                        self.bots_list, self.grass, son_energy, son_vt,
                        new_genome, self.train_turns)
+        self.relatives.append(self.bots_list[-1])
+        self.bots_list[-1].relatives.append(self)
         return True
 
     def train(self):
@@ -224,6 +247,12 @@ class Bot(object):
         self.train()
 
     def die(self):
+        for rel in self.relatives:
+            if self in rel.relatives:
+                rel.relatives.remove(self)
+            for rel2 in self.relatives:
+                if rel != rel2 and not rel2 in rel.relatives:
+                    rel.relatives.append(rel2)
         self.bots_list.remove(self)
 
     def move(self, well1, well2):
@@ -349,8 +378,8 @@ class  Carnivore(Bot):
         if reactions[2] > 0.5:
             self.emit_sound()
         if sum(reactions[0:3]) < 0.5:
-            self.energy -= 1
-        self.energy -= sum(reactions[0:3]) / 2.0 + 3
+            self.energy -= 5
+        self.energy -= sum(reactions[0:3]) / 3.0 + 2
         if self.energy <= 0:
             self.die()
         self.size = self.energy / 3000.0 * 10 + 5 + self.age / 1000.0
@@ -388,6 +417,8 @@ class  Carnivore(Bot):
                     pygame.draw.circle(self.surface, (255,200,255),
                                       (int(sound[1][0]),int(sound[1][1])),
                                        size , 1)
+            
+            draw_genealogic_tree(self.surface, self)
 
 class Herbivore(Bot):
 
@@ -411,12 +442,14 @@ class Herbivore(Bot):
         self.camuflage = reactions[3] * 128
         if sum(reactions[0:3]) < 0.5:
             self.energy -= 1
-        self.energy -= sum(reactions[0:3]) / 5.0 + 3
+        self.energy -= sum(reactions[0:3]) / 5.0 + 6
         if self.energy <= 0:
             self.die()
+        elif self.energy > 1000:
+            self.energy = 1000
         self.size = self.energy / 3000.0 * 10 + 5 + self.age / 1000.0
-        if self.size > 20:
-            self.size = 20
+        if self.size > 15:
+            self.size = 15
         self.age += 1
         self.draw()
 
@@ -449,11 +482,12 @@ class Herbivore(Bot):
                     pygame.draw.circle(self.surface, (255,200,255),
                                       (int(sound[1][0]),int(sound[1][1])),
                                        size , 1)
+            draw_genealogic_tree(self.surface, self)
         
 
 class World:
-    def __init__(self, size = (800, 800), grass_number = 20, min_herb = 10,
-                 min_carn = 10, init_herb = 30, init_carn = 30):
+    def __init__(self, size = (800, 800), grass_number = 15, min_herb = 10,
+                 min_carn = 10, init_herb = 20, init_carn = 20):
         self.bots = []
         self.min_carn = min_carn
         self.min_herb = min_herb
@@ -505,6 +539,13 @@ class World:
                     last_in_ain.in_ain = False
                     nearst_bot.in_ain = True
                     last_in_ain = nearst_bot
+                if event.button == 3:
+                    #Bots by adaptation
+                    bba = sorted(self.bots, key = lambda bot: bot.age)
+                    best = bba[-1]
+                    best.in_ain = True
+                    last_in_ain.in_ain = False
+                    last_in_ain = best
                 
 
     def population_controll(self):
