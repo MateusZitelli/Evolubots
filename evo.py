@@ -68,8 +68,8 @@ class Grass:
     """field of grass"""
 
 
-    def __init__(self, width, heigth, surface, max_val_each_field = 200,
-                 speed_of_obtention = 20, speed_of_growing = 2,
+    def __init__(self, width, heigth, surface, max_val_each_field = 100,
+                 speed_of_obtention = 20, speed_of_growing = 0.5,
                  initial_size = 0):
         """
         width, heigth -> Number of fields on grass field.
@@ -161,6 +161,8 @@ class Bot(object):
         self.in_ain = False
         self.relatives = []
         self.last_sex = 0
+        self.center = sum(self.antennas_angles) / 2.0 % (2 * pi)
+        self.max_wh = max(self.surface.get_size())
         if genetic_code == None:
             self.create_random_gcode()
         else:
@@ -190,9 +192,9 @@ class Bot(object):
         for i in range(int(self.variability_tax)):
             gen_to_chage = randint(0, 768)
             if choice([0,1]):
-                new_genome | (1 << gen_to_chage)
+                new_genome |= (1 << gen_to_chage)
             else:
-                new_genome & ~(1 << gen_to_chage)
+                new_genome &= ~(1 << gen_to_chage)
         son_energy = self.energy * 0.25 + other.energy *  0.25
         self.energy *= 0.75
         other.energy *= 0.75
@@ -277,78 +279,59 @@ class Bot(object):
                                                            ["s",distance])
 
     def use_sensors(self, bots_by_distance = 0):
-        max_wh = max(self.surface.get_size())
         sensors = [0.0] * 12
-        center = sum(self.antennas_angles) / 2.0 % (2 * pi)
         aangles = self.antennas_angles[:]
-        for a in range(len(aangles)):
-            aangles[a] = (aangles[a]) % (2 * pi)
-        #Use a limit to verify only the most nears, if you don't have a quad
-        #core this is the best choose
-        bots_by_distance = sorted(self.bots_list,          #remove itself
+        bots_by_distance = sorted(self.bots_list,      #remove itself from list
                                  key = lambda bot:bots_distance(bot, self))[1:]
         #angle base to verify the antennas
-        astart = (center + self.angle) % (2 * pi)
-        draw_angle = astart
-        for bot in bots_by_distance[:]:
+        astart = (self.angle - self.center) % (2 * pi)
+        #Verify the 5 nearsts bots
+        for bot in bots_by_distance[:5]:
             #angle between it self and other bot
             angle = atan2(bot.pos[1] - self.pos[1], bot.pos[0] - self.pos[0])
             angle %= (2 * pi)
             if angle > astart and angle <= (astart + aangles[0]) % (2 * pi):
                 #Verify if the bot is of the same type of itself
                 if bot.__class__.__name__ == self.__class__.__name__:
-                    sensors[2] += sensors[2] + bots_distance(bot, self) /max_wh
-                    sensors[2] /= 2.0
+                    sensors[2] += bots_distance(bot, self) /self.max_wh
                 else:
-                    sensors[5] += sensors[2] + bots_distance(bot, self) /max_wh
-                    sensors[5] /= 2.0
-                sensors[8] = (sensors[8] + bot.camuflage) / 2.0
-                red = sensors[5] * 255 % 256
-                green = sensors[2] * 255 % 256
-                blue = sensors[8] * 255 % 256
+                    sensors[5] += bots_distance(bot, self) /self.max_wh
+                sensors[8] += bot.camuflage
                 continue
-            astart = (astart - aangles[1]) % ( 2 * pi)
+            astart = (astart + aangles[1]) % ( 2 * pi)
             if angle > astart and angle < (astart + aangles[1]) % (2 * pi):
                 if bot.__class__.__name__ == self.__class__.__name__:
-                    sensors[1] += sensors[2] + bots_distance(bot, self) /max_wh
-                    sensors[1] /= 2.0
+                    sensors[1] += bots_distance(bot, self) /self.max_wh
                 else:
-                    sensors[4] += sensors[2] + bots_distance(bot, self) /max_wh
-                    sensors[4] /= 2.0
-                sensors[7] = (sensors[7] + bot.camuflage) / 2.0
-                red = sensors[4] * 255 % 256
-                green = sensors[1] * 255 % 256
-                blue = sensors[7] * 255 % 256
+                    sensors[4] += bots_distance(bot, self) /self.max_wh
+                sensors[7] += bot.camuflage
                 continue
-            astart = (astart - aangles[2]) % ( 2 * pi)
+            astart = (astart + aangles[2]) % ( 2 * pi)
             if angle > astart and angle < (astart + aangles[2]) % (2 * pi):
                 if bot.__class__.__name__ == self.__class__.__name__:
-                    sensors[0] += sensors[2] + bots_distance(bot, self) /max_wh
-                    sensors[0] /= 2.0
+                    sensors[0] += bots_distance(bot, self) /self.max_wh
                 else:
-                    sensors[3] += sensors[2] + bots_distance(bot, self) /max_wh
-                    sensors[3] /= 2.0
-                sensors[6] = (sensors[6] + bot.camuflage) / 5.0 + 0.5
-                red = sensors[3] * 255 % 256
-                green = sensors[0] * 255 % 256
-                blue = sensors[6] * 255 % 256
-            astart = (center + self.angle) % (2 * pi) 
+                    sensors[3] += bots_distance(bot, self) /self.max_wh
+                sensors[6] += bot.camuflage
+            astart = (self.angle - self.center) % (2 * pi)
+        for sen in range(8):
+            sensors[sen] /= 5.0
         sensors[9] = self.grass.get_food_quantity(self.pos[0], self.pos[1])
         if self.age in self.signals_to_receive:
             sig = self.signals_to_receive[self.age]
             for received in sig:
                 if received[0] == "s":
-                    sensors[10] = received[1]/max_wh
+                    sensors[10] = received[1]/self.max_wh
 
             del self.signals_to_receive[self.age]
-        sensors[11] = (3000 - self.energy)/3000.0
+        sensors[11] = (2000 - self.energy)/2000.0
         return sensors
                 
 class  Carnivore(Bot):
 
 
     def __init__(self, x, y, surface, bots_list, grass, energy = 500,
-                 variability_tax = 10, genetic_code = None, train_turns = 100):
+                 variability_tax = 1, genetic_code = None, train_turns = 100):
         Bot.__init__(self,x, y, surface, bots_list, grass, energy,
                      variability_tax, genetic_code, train_turns)
 
@@ -367,9 +350,11 @@ class  Carnivore(Bot):
                             bot.die()
                     else:
                         atack_force = self.energy / 2.0
-                        bot.energy -= atack_force
+                        retired_energy = atack_force / 4.0
+                        bot.energy -= atack_force / 4.0
+                        self.energy += atack_force / 4.0
                         if bot.energy <= 0:
-                            self.energy += atack_force
+                            self.energy += 300
                             bot.die()
         self.sensors = self.use_sensors()
         reactions = self.neural_network.run(self.sensors)
@@ -377,12 +362,10 @@ class  Carnivore(Bot):
         self.move(reactions[0], reactions[1])
         if reactions[2] > 0.5:
             self.emit_sound()
-        if sum(reactions[0:3]) < 0.5:
-            self.energy -= 5
-        self.energy -= sum(reactions[0:3]) / 3.0 + 2
-        if self.energy <= 0:
+        self.size = self.energy / 300.0  + 5 + self.age / 1000.0
+        self.energy -= sum(reactions[0:3]) + (self.size - 5)
+        if self.energy <= 0 or self.age > 5000:
             self.die()
-        self.size = self.energy / 3000.0 * 10 + 5 + self.age / 1000.0
         if self.size > 15:
             self.size = 15
         self.age += 1
@@ -398,14 +381,26 @@ class  Carnivore(Bot):
         #Contour
         pygame.draw.circle(self.surface, (0,0,0), (int(self.pos[0]),
                            int(self.pos[1])), int(self.size), 1)
-        #Direction
-        point = (self.pos[0] + 50 * cos(self.angle),
-                 self.pos[1] + 50 * sin(self.angle))
-        pygame.draw.aaline(self.surface, (255,0,0), (int(self.pos[0]),
-                         int(self.pos[1])), point)
+        #Antennas
+        #-Antenna's points angles
+        points = [(self.angle - self.center + self.antennas_angles[0] / 2) % (2 * pi)]
+        for i in range(2):
+            points.append((points[-1] + self.antennas_angles[i + 1])% (2 * pi))
+        #-Antenna's colors
+        colors = []
+        for cor in range(3):
+            r = self.sensors[cor] * 255 % 256
+            g = self.sensors[3 + cor] * 255 % 256
+            b = self.sensors[6 + cor] * 255 % 256
+            colors.append((r, g, b))
+        #-Draw then
+        for ante in range(3):
+            x = self.pos[0] + cos(points[ante]) * (self.size + 20)
+            y = self.pos[1] + sin(points[ante]) * (self.size + 20)
+            pygame.draw.aaline(self.surface, colors[ante], self.pos, (x,y))
         if self.in_ain:
             pygame.draw.circle(self.surface, (255,0,0), (int(self.pos[0]),
-                               int(self.pos[1])), self.size + 3 , 1)
+                               int(self.pos[1])), int(self.size + 3) , 1)
             #Sound Waves
             for sound in self.sound_list:
                 size = int(self.age - sound[0]) * 50
@@ -424,13 +419,13 @@ class Herbivore(Bot):
 
 
     def __init__(self, x, y, surface, bots_list, grass, energy = 500,
-                 variability_tax = 10, genetic_code = None, train_turns = 100):
+                 variability_tax = 1, genetic_code = None, train_turns = 100):
         Bot.__init__(self,x, y, surface, bots_list, grass, energy,
                      variability_tax, genetic_code, train_turns)
 
     def react(self):
         for bot in self.bots_list:
-            if bot != self and  bots_distance(bot, self) < self.size + bot.size:
+            if bot != self and bots_distance(bot, self) < self.size + bot.size:
                 if self.age - self.last_sex > 200 and self + bot:
                     self.last_sex = self.age
         self.energy += self.grass.eat(self.pos[0], self.pos[1])
@@ -440,14 +435,12 @@ class Herbivore(Bot):
         if reactions[2] > 0.5:
             self.emit_sound()
         self.camuflage = reactions[3] * 128
-        if sum(reactions[0:3]) < 0.5:
-            self.energy -= 1
-        self.energy -= sum(reactions[0:3]) / 5.0 + 6
+        self.size = self.energy / 300.0  + 5 + self.age / 1000.0
+        self.energy -= sum(reactions[0:3]) + (self.size - 5)
         if self.energy <= 0:
             self.die()
-        elif self.energy > 1000:
-            self.energy = 1000
-        self.size = self.energy / 3000.0 * 10 + 5 + self.age / 1000.0
+        elif self.energy > 2000 or self.age > 5000:
+            self.energy = 2000
         if self.size > 15:
             self.size = 15
         self.age += 1
@@ -463,18 +456,29 @@ class Herbivore(Bot):
         #Contourbot
         pygame.draw.circle(self.surface, (0,0,0), (int(self.pos[0]),
                            int(self.pos[1])), int(self.size), 1)
-        #Direction
-        point = (self.pos[0] + 50 * cos(self.angle),
-                 self.pos[1] + 50 * sin(self.angle))
-        pygame.draw.aaline(self.surface, (255,0,0), (int(self.pos[0]),
-                         int(self.pos[1])), point)
+        #Antennas
+        #-Antenna's points angles
+        points = [(self.angle - self.center + self.antennas_angles[0] / 2) % (2 * pi)]
+        for i in range(2):
+            points.append((points[-1] + self.antennas_angles[i + 1])% (2 * pi))
+        #-Antenna's colors
+        colors = []
+        for cor in range(3):
+            r = self.sensors[cor] * 255 % 256
+            g = self.sensors[3 + cor] * 255 % 256
+            b = self.sensors[6 + cor] * 255 % 256
+            colors.append((r, g, b))
+        #-Draw then
+        for ante in range(3):
+            x = self.pos[0] + cos(points[ante]) * (self.size + 20)
+            y = self.pos[1] + sin(points[ante]) * (self.size + 20)
+            pygame.draw.aaline(self.surface, colors[ante], self.pos, (x,y))
         if self.in_ain:
             pygame.draw.circle(self.surface, (255,0,0), (int(self.pos[0]),
-                               int(self.pos[1])), self.size + 3 , 1)
+                               int(self.pos[1])), int(self.size + 3), 1)
             #Sound Waves
             for sound in self.sound_list:
                 size = int(self.age - sound[0]) * 50
-
                 if size > max(self.surface.get_size()):
                     self.sound_list.remove(sound)
                     continue
@@ -486,8 +490,8 @@ class Herbivore(Bot):
         
 
 class World:
-    def __init__(self, size = (800, 800), grass_number = 15, min_herb = 10,
-                 min_carn = 10, init_herb = 20, init_carn = 20):
+    def __init__(self, size = (1000, 1000), grass_number = 30, min_herb = 4,
+                 min_carn = 0, init_herb = 50, init_carn = 0):
         self.bots = []
         self.min_carn = min_carn
         self.min_herb = min_herb
@@ -498,27 +502,21 @@ class World:
         self.events = Thread(target=self.get_event)
         self.loop = Thread(target=self.main_loop)
         self.grass = Grass(grass_number, grass_number,
-                           self.surface, initial_size = 0)
-        new = Carnivore(randint(0,size[0]), randint(0,size[1]), self.surface,
-                        self.bots, self.grass)
-        for i in range(init_carn / 2):
-            new + new
-            self.bots[-1].energy = 500
-        new = Carnivore(randint(0,size[0]), randint(0,size[1]), self.surface,
-                        self.bots, self.grass)
-        for i in range(init_carn - init_carn / 2):
-            new + new
-            self.bots[-1].energy = 500
-        new = Herbivore(randint(0,size[0]), randint(0,size[1]), self.surface,
-                        self.bots, self.grass)
-        for i in range(init_herb / 2):
-            new + new
-            self.bots[-1].energy = 500
-        new = Herbivore(randint(0,size[0]), randint(0,size[1]), self.surface,
-                        self.bots, self.grass)
-        for i in range(init_herb - init_herb / 2):
-            new + new
-            self.bots[-1].energy = 500
+                           self.surface, initial_size = 50)
+        if init_carn > 0:
+            for families in range(2):
+                new = Carnivore(randint(0,size[0]), randint(0,size[1]), self.surface,
+                                self.bots, self.grass)
+                for i in range((init_carn - 1) / 2):
+                    new + new
+                    self.bots[-1].energy = 500
+        if init_herb > 0:
+            for families in range(2):
+                new = Herbivore(randint(0,size[0]), randint(0,size[1]), self.surface,
+                                self.bots, self.grass)
+                for i in range((init_herb - 1) / 2):
+                    new + new
+                    self.bots[-1].energy = 500
 
     def get_event(self):
         last_in_ain = self.bots[0]
@@ -537,8 +535,9 @@ class World:
                 nearst_bot = bbd[0]
                 if event.button == 1:
                     last_in_ain.in_ain = False
-                    nearst_bot.in_ain = True
-                    last_in_ain = nearst_bot
+                    if bots_distance(nearst_bot,event) < nearst_bot.size:
+                        nearst_bot.in_ain = True
+                        last_in_ain = nearst_bot
                 if event.button == 3:
                     #Bots by adaptation
                     bba = sorted(self.bots, key = lambda bot: bot.age)
@@ -546,6 +545,9 @@ class World:
                     best.in_ain = True
                     last_in_ain.in_ain = False
                     last_in_ain = best
+            if event.type == KEYDOWN:
+                if event.unicode == "s":
+                    print last_in_ain.genetic_code
                 
 
     def population_controll(self):
@@ -566,18 +568,27 @@ class World:
             for i in range(self.min_carn):
                 new_carn + new_carn
                 self.bots[-1].energy = 500
+        if (self.turn + 1) % 500 == 0:
+            new_herb = Herbivore(randint(0,self.size[0]), randint(0,self.size[1]),
+                                 self.surface, self.bots, self.grass)
+            for i in range(5):
+                new_herb + new_herb
+                self.bots[-1].energy = 500
+            new_carn = Carnivore(randint(0,self.size[0]), randint(0,self.size[1]),
+                                 self.surface, self.bots, self.grass)
+            for i in range(5):
+                new_carn + new_carn
+                self.bots[-1].energy = 500
         self.population_log[0].append(herb_pop)
         self.population_log[1].append(carn_pop)
 
     def main_loop(self):
         self.turn = 0
         while(self.running):
-            pygame.display.flip()
+            self.population_controll()
             if self.turn % 1 == 0:
-                self.population_controll()
+                pygame.display.flip()
                 self.grass.draw()
-            else:
-                self.surface.fill((255,255,255))
             for bot in self.bots:
                 bot.react()
             self.grass.grow()
@@ -588,7 +599,6 @@ class World:
         self.events.start()
 
 if __name__ == "__main__":
-    simulation = World()
+    simulation = World(size = (1000, 1000), grass_number = 30, min_herb = 0,
+                       min_carn = 0, init_herb = 20, init_carn = 20)
     simulation.run()
-
-
